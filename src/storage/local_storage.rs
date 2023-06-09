@@ -12,19 +12,15 @@ pub fn create_storage_key(object_key: &ObjectKey) -> String {
 pub async fn save_string(key: &str, value: &str) -> Result<(), JsValue> {
     if let Some(window) = window() {
         if let Ok(Some(storage)) = window.local_storage() {
-            storage.set_item(key, value).map_err(|_| {
-                JsValue::from_str("Error: Unable to save data to localStorage.")
-            })?;
+            storage
+                .set_item(key, value)
+                .map_err(|_| JsValue::from_str("Error: Unable to save data to localStorage."))?;
             return Ok(());
         } else {
-            return Err(JsValue::from_str(
-                "Error: localStorage is not available.",
-            ));
+            return Err(JsValue::from_str("Error: localStorage is not available."));
         }
     } else {
-        return Err(JsValue::from_str(
-            "Error: Unable to access window object.",
-        ));
+        return Err(JsValue::from_str("Error: Unable to access window object."));
     }
 }
 
@@ -47,20 +43,14 @@ pub async fn delete_string(key: &str) -> Result<(), JsValue> {
     if let Some(window) = window() {
         if let Ok(Some(storage)) = window.local_storage() {
             storage.remove_item(key).map_err(|_| {
-                JsValue::from_str(
-                    "Error: Unable to remove data from localStorage.",
-                )
+                JsValue::from_str("Error: Unable to remove data from localStorage.")
             })?;
             return Ok(());
         } else {
-            return Err(JsValue::from_str(
-                "Error: localStorage is not available.",
-            ));
+            return Err(JsValue::from_str("Error: localStorage is not available."));
         }
     } else {
-        return Err(JsValue::from_str(
-            "Error: Unable to access window object.",
-        ));
+        return Err(JsValue::from_str("Error: Unable to access window object."));
     }
 }
 

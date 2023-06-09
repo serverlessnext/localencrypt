@@ -7,15 +7,11 @@ pub struct User {
 }
 
 impl User {
-    pub async fn new(
-        username: &str,
-        password: &str,
-    ) -> SecureStringResult<Self> {
+    pub async fn new(username: &str, password: &str) -> SecureStringResult<Self> {
         let hashed_username = hash_username(username);
 
         let object_key_user = ObjectKey::new("USER", &hashed_username)?;
-        let crypto_key =
-            derive_key_from_password(&object_key_user, password).await?;
+        let crypto_key = derive_key_from_password(&object_key_user, password).await?;
 
         let object_key_crypto = ObjectKey::new(&object_key_user.id(), "self")?;
         Ok(Self {
@@ -33,10 +29,7 @@ impl User {
         SecureStorage::exists(object_key).await
     }
 
-    pub async fn create(
-        username: &str,
-        password: &str,
-    ) -> SecureStringResult<Self> {
+    pub async fn create(username: &str, password: &str) -> SecureStringResult<Self> {
         // this will ensure existing config is deleted
         User::reset(username).await?;
         let user = User::new(username, password).await?;
@@ -44,10 +37,7 @@ impl User {
         Ok(user)
     }
 
-    pub async fn create_or_validate(
-        username: &str,
-        password: &str,
-    ) -> SecureStringResult<Self> {
+    pub async fn create_or_validate(username: &str, password: &str) -> SecureStringResult<Self> {
         if !User::exists(username).await {
             return User::create(username, password).await;
         }
@@ -78,7 +68,7 @@ impl User {
         match User::create_or_validate(username, password).await {
             Ok(_) => Ok(true), /* Password is valid if new_and_validate doesn't return an error */
             Err(SecureStringError::DecryptError(_)) => Ok(false), /* DecryptError indicates an invalid password */
-            Err(err) => Err(err), // Propagate any other errors
+            Err(err) => Err(err),                                 // Propagate any other errors
         }
     }
 
@@ -156,14 +146,11 @@ mod tests {
         User::create(username, password).await.unwrap();
 
         // Now try to validate the user with wrong password
-        let user_result =
-            User::create_or_validate(username, wrong_password).await;
+        let user_result = User::create_or_validate(username, wrong_password).await;
         assert!(user_result.is_err());
         assert_eq!(
             user_result.unwrap_err(),
-            SecureStringError::DecryptError(
-                "Please ensure the password is correct.".to_owned()
-            )
+            SecureStringError::DecryptError("Please ensure the password is correct.".to_owned())
         );
     }
 

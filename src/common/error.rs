@@ -13,6 +13,7 @@ pub enum SecureStringError {
     NoWindow,
     NoCrypto,
     NoLocalStorageData,
+    FormAlreadyExists,
     PasswordNotFound(String),
     EmptyPassword,
     SaltNotStored,
@@ -55,6 +56,9 @@ impl fmt::Display for SecureStringError {
             SecureStringError::NoCrypto => write!(f, "No crypto key found"),
             SecureStringError::NoLocalStorageData => {
                 write!(f, "No data in local storage")
+            }
+            SecureStringError::FormAlreadyExists => {
+                write!(f, "Form already exists")
             }
             SecureStringError::PasswordNotFound(msg) => {
                 write!(f, "Password not found: {}", msg)

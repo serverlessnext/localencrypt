@@ -58,10 +58,7 @@ pub async fn decrypt(
     Ok(decrypted_data_vec)
 }
 
-pub async fn derive_crypto_key(
-    password: &str,
-    salt: &str,
-) -> SecureStringResult<CryptoKey> {
+pub async fn derive_crypto_key(password: &str, salt: &str) -> SecureStringResult<CryptoKey> {
     if password.is_empty() {
         return Err(SecureStringError::EmptyPassword);
     }
@@ -70,11 +67,9 @@ pub async fn derive_crypto_key(
     let password_data = string_to_uint8array(password);
     let salt_data = string_to_uint8array(salt);
 
-    let password_key =
-        import_key(&subtle, &password_data, &[KEY_USAGE_DERIVE_KEY]).await?;
+    let password_key = import_key(&subtle, &password_data, &[KEY_USAGE_DERIVE_KEY]).await?;
     let key_usages = [KEY_USAGE_ENCRYPT, KEY_USAGE_DECRYPT];
-    let derived_key =
-        derive_key(&subtle, &salt_data, &password_key, &key_usages).await?;
+    let derived_key = derive_key(&subtle, &salt_data, &password_key, &key_usages).await?;
 
     Ok(derived_key)
 }

@@ -11,18 +11,12 @@ pub async fn import_key(
 ) -> Result<CryptoKey, SecureStringError> {
     let key_usages_js = key_usages_to_js(key_usages);
 
-    let password_key_promise = subtle.import_key_with_str(
-        "raw",
-        password_data,
-        "PBKDF2",
-        false,
-        &key_usages_js.into(),
-    )?;
+    let password_key_promise =
+        subtle.import_key_with_str("raw", password_data, "PBKDF2", false, &key_usages_js.into())?;
 
-    let password_key: CryptoKey =
-        wasm_bindgen_futures::JsFuture::from(password_key_promise)
-            .await?
-            .dyn_into()?;
+    let password_key: CryptoKey = wasm_bindgen_futures::JsFuture::from(password_key_promise)
+        .await?
+        .dyn_into()?;
     Ok(password_key)
 }
 
@@ -62,10 +56,9 @@ pub async fn derive_key(
         &key_usages_js.into(),
     )?;
 
-    let derived_key: CryptoKey =
-        wasm_bindgen_futures::JsFuture::from(derived_key_promise)
-            .await?
-            .dyn_into()?;
+    let derived_key: CryptoKey = wasm_bindgen_futures::JsFuture::from(derived_key_promise)
+        .await?
+        .dyn_into()?;
 
     Ok(derived_key)
 }
@@ -144,16 +137,12 @@ mod tests {
         let password_data = Uint8Array::from(&[1, 2, 3, 4][..]);
         let salt_data = Uint8Array::from(&[5, 6, 7, 8, 9, 10, 11, 12][..]);
 
-        let password_key =
-            match import_key(&subtle, &password_data, &key_usages_import).await
-            {
-                Ok(key) => key,
-                Err(err) => panic!("import_key failed with error: {:?}", err),
-            };
+        let password_key = match import_key(&subtle, &password_data, &key_usages_import).await {
+            Ok(key) => key,
+            Err(err) => panic!("import_key failed with error: {:?}", err),
+        };
 
-        match derive_key(&subtle, &salt_data, &password_key, &key_usages_derive)
-            .await
-        {
+        match derive_key(&subtle, &salt_data, &password_key, &key_usages_derive).await {
             Ok(_) => (),
             Err(err) => panic!("derive_key failed with error: {:?}", err),
         };

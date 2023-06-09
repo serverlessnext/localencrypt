@@ -3,9 +3,7 @@ use base64::Engine as _;
 use js_sys::Uint8Array;
 use web_sys::CryptoKey;
 
-use super::local_storage::{
-    create_storage_key, delete_string, load_string, save_string,
-};
+use super::local_storage::{create_storage_key, delete_string, load_string, save_string};
 use crate::crypto::{decrypt, encrypt, get_crypto_subtle};
 use crate::{ObjectKey, SecureStringError, SecureStringResult};
 
@@ -72,8 +70,7 @@ impl SecureStorage {
         let encrypted_data_base64 = load_string(&storage_key)
             .await
             .ok_or(SecureStringError::NoLocalStorageData)?;
-        let encrypted_data_with_iv =
-            general_purpose::STANDARD.decode(&encrypted_data_base64)?;
+        let encrypted_data_with_iv = general_purpose::STANDARD.decode(&encrypted_data_base64)?;
         let (iv, encrypted_data) = encrypted_data_with_iv.split_at(12);
         let encrypted_data = Uint8Array::from(&encrypted_data[..]);
         let iv = Uint8Array::from(&iv[..]);
@@ -81,9 +78,7 @@ impl SecureStorage {
         let decrypted_data = decrypt(crypto_key, &encrypted_data, &iv)
             .await
             .map_err(|_| {
-                SecureStringError::DecryptError(
-                    "Please ensure the password is correct.".to_owned(),
-                )
+                SecureStringError::DecryptError("Please ensure the password is correct.".to_owned())
             })?;
         Ok(decrypted_data)
     }
@@ -124,13 +119,11 @@ mod tests {
         let object_key = ObjectKey::new("test1", "test_id1").unwrap();
         let password = "password_for_new";
 
-        let crypto_key_result =
-            derive_key_from_password(&object_key, password).await;
+        let crypto_key_result = derive_key_from_password(&object_key, password).await;
         assert!(crypto_key_result.is_ok());
 
         let crypto_key = crypto_key_result.unwrap();
-        let secure_storage =
-            SecureStorage::new(object_key.clone(), crypto_key.clone());
+        let secure_storage = SecureStorage::new(object_key.clone(), crypto_key.clone());
         assert_eq!(secure_storage.object_key, object_key);
         assert_eq!(secure_storage.crypto_key, Some(crypto_key));
     }
@@ -151,13 +144,11 @@ mod tests {
         let value = "test_value_for_save_load_delete";
 
         // Create the crypto key
-        let crypto_key_result =
-            derive_key_from_password(&object_key, password).await;
+        let crypto_key_result = derive_key_from_password(&object_key, password).await;
         assert!(crypto_key_result.is_ok());
 
         let crypto_key = crypto_key_result.unwrap();
-        let secure_storage =
-            SecureStorage::new(object_key.clone(), crypto_key.clone());
+        let secure_storage = SecureStorage::new(object_key.clone(), crypto_key.clone());
 
         // Save the string
         let save_result = secure_storage.save(value.as_bytes()).await;
@@ -186,8 +177,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_exists() {
-        let object_key =
-            ObjectKey::new("test_exists", "test_id_exists").unwrap();
+        let object_key = ObjectKey::new("test_exists", "test_id_exists").unwrap();
         let password = "password_for_exists";
         let value = "test_value_for_exists";
 
@@ -196,13 +186,11 @@ mod tests {
         assert_eq!(exists, false);
 
         // Create the crypto key
-        let crypto_key_result =
-            derive_key_from_password(&object_key, password).await;
+        let crypto_key_result = derive_key_from_password(&object_key, password).await;
         assert!(crypto_key_result.is_ok());
 
         let crypto_key = crypto_key_result.unwrap();
-        let secure_storage =
-            SecureStorage::new(object_key.clone(), crypto_key.clone());
+        let secure_storage = SecureStorage::new(object_key.clone(), crypto_key.clone());
 
         // Save the string
         let save_result = secure_storage.save(value.as_bytes()).await;
@@ -228,13 +216,11 @@ mod tests {
         let value = "test_value_for_empty";
 
         // Create the crypto key
-        let crypto_key_result =
-            derive_key_from_password(&object_key, password).await;
+        let crypto_key_result = derive_key_from_password(&object_key, password).await;
         assert!(crypto_key_result.is_ok());
 
         let crypto_key = crypto_key_result.unwrap();
-        let secure_storage =
-            SecureStorage::new(object_key.clone(), crypto_key.clone());
+        let secure_storage = SecureStorage::new(object_key.clone(), crypto_key.clone());
 
         // Save the string
         let save_result = secure_storage.save(value.as_bytes()).await;
@@ -255,9 +241,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_for_deletion_no_key() {
-        let object_key =
-            ObjectKey::new("test_for_deletion", "test_id_for_deletion")
-                .unwrap();
+        let object_key = ObjectKey::new("test_for_deletion", "test_id_for_deletion").unwrap();
 
         let secure_storage = SecureStorage::for_deletion(object_key.clone());
 
@@ -285,20 +269,16 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_large_string() {
-        let object_key =
-            ObjectKey::new("test_large_string", "test_id_large_string")
-                .unwrap();
+        let object_key = ObjectKey::new("test_large_string", "test_id_large_string").unwrap();
         let password = "password";
         let value = "a".repeat(1_000_000);
 
         // Create the crypto key
-        let crypto_key_result =
-            derive_key_from_password(&object_key, password).await;
+        let crypto_key_result = derive_key_from_password(&object_key, password).await;
         assert!(crypto_key_result.is_ok());
 
         let crypto_key = crypto_key_result.unwrap();
-        let secure_storage =
-            SecureStorage::new(object_key.clone(), crypto_key.clone());
+        let secure_storage = SecureStorage::new(object_key.clone(), crypto_key.clone());
 
         // Save the string
         let save_result = secure_storage.save(value.as_bytes()).await;
@@ -315,22 +295,17 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_different_crypto_key() {
-        let object_key = ObjectKey::new(
-            "test_different_crypto_key",
-            "test_id_different_crypto_key",
-        )
-        .unwrap();
+        let object_key =
+            ObjectKey::new("test_different_crypto_key", "test_id_different_crypto_key").unwrap();
         let password = "password";
         let value = "test_value";
 
         // Create the crypto key
-        let crypto_key_result =
-            derive_key_from_password(&object_key, password).await;
+        let crypto_key_result = derive_key_from_password(&object_key, password).await;
         assert!(crypto_key_result.is_ok());
 
         let crypto_key = crypto_key_result.unwrap();
-        let secure_storage =
-            SecureStorage::new(object_key.clone(), crypto_key.clone());
+        let secure_storage = SecureStorage::new(object_key.clone(), crypto_key.clone());
 
         // Save the string
         let save_result = secure_storage.save(value.as_bytes()).await;
@@ -342,19 +317,15 @@ mod tests {
         assert!(different_crypto_key_result.is_ok());
 
         let different_crypto_key = different_crypto_key_result.unwrap();
-        let different_secure_storage = SecureStorage::new(
-            object_key.clone(),
-            different_crypto_key.clone(),
-        );
+        let different_secure_storage =
+            SecureStorage::new(object_key.clone(), different_crypto_key.clone());
 
         // Try to load the string with the different crypto key
         let load_result = different_secure_storage.load().await;
         assert!(load_result.is_err());
         assert_eq!(
             load_result.unwrap_err(),
-            SecureStringError::DecryptError(
-                "Please ensure the password is correct.".to_owned()
-            )
+            SecureStringError::DecryptError("Please ensure the password is correct.".to_owned())
         );
     }
 
@@ -369,13 +340,11 @@ mod tests {
         let value = "test_value";
 
         // Create the crypto key
-        let crypto_key_result =
-            derive_key_from_password(&object_key, password).await;
+        let crypto_key_result = derive_key_from_password(&object_key, password).await;
         assert!(crypto_key_result.is_ok());
 
         let crypto_key = crypto_key_result.unwrap();
-        let secure_storage =
-            SecureStorage::new(object_key.clone(), crypto_key.clone());
+        let secure_storage = SecureStorage::new(object_key.clone(), crypto_key.clone());
 
         // Save the string
         let save_result = secure_storage.save(value.as_bytes()).await;

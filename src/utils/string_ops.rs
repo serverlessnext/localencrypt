@@ -46,8 +46,7 @@ mod tests {
     fn test_generate_string_base64() {
         let length = 16;
         let result = generate_string_base64(length).unwrap();
-        let decoded =
-            general_purpose::STANDARD.decode(result.as_bytes()).unwrap();
+        let decoded = general_purpose::STANDARD.decode(result.as_bytes()).unwrap();
         assert_eq!(decoded.len(), length);
     }
 
@@ -55,8 +54,7 @@ mod tests {
     fn test_generate_password_base64() {
         let length = 16;
         let result = generate_password_base64().unwrap();
-        let decoded =
-            general_purpose::STANDARD.decode(result.as_bytes()).unwrap();
+        let decoded = general_purpose::STANDARD.decode(result.as_bytes()).unwrap();
         assert_eq!(decoded.len(), length);
     }
 
@@ -64,8 +62,7 @@ mod tests {
     fn test_generate_salt_base64() {
         let length = 16;
         let result = generate_salt_base64().unwrap();
-        let decoded =
-            general_purpose::STANDARD.decode(result.as_bytes()).unwrap();
+        let decoded = general_purpose::STANDARD.decode(result.as_bytes()).unwrap();
         assert_eq!(decoded.len(), length);
     }
 }

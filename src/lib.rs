@@ -1,15 +1,15 @@
 pub(crate) mod common;
-mod configurations;
 pub(crate) mod crypto;
 pub(crate) mod storage;
-mod user;
 pub(crate) mod utils;
+mod user;
+mod configurations;
 
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
 pub use common::{ObjectKey, SecureStringError, SecureStringResult};
-use configurations::Configurations;
+pub use configurations::DocumentStore;
 use storage::SecureStorage;
 use user::User;
 
@@ -44,92 +44,62 @@ impl DocumentMetaData {
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct DocumentStore {
-    secure_storage: SecureStorage,
-    configurations: Configurations,
+pub enum StorageBackend {
+    DocumentStore(DocumentStore),
+    Memory,
 }
 
-impl DocumentStore {
-    pub fn new(secure_storage: SecureStorage) -> Self {
+
+#[derive(Clone, PartialEq)]
+pub struct Credentials {
+    username: String,
+    password: String,
+}
+
+impl Credentials {
+    fn new(username: &str, password: &str) -> Self {
         Self {
-            secure_storage,
-            configurations: Configurations {},
+            username: username.to_string(),
+            password: password.to_string(),
         }
     }
+}
 
-    pub async fn list_configurations(
-        &self,
-    ) -> SecureStringResult<Vec<DocumentMetaData>> {
-        self.configurations.list(&self.secure_storage).await
-    }
-
-    pub async fn save_configuration(
-        &mut self,
-        meta_data: DocumentMetaData,
-        document_content: &[u8],
-    ) -> SecureStringResult<()> {
-        self.configurations
-            .save(&mut self.secure_storage, meta_data, document_content)
-            .await
-    }
-
-    pub async fn load_configuration(
-        &self,
-        form_id: &str,
-    ) -> SecureStringResult<Vec<u8>> {
-        self.configurations
-            .load(&self.secure_storage, form_id)
-            .await
-    }
-
-    pub async fn add_configuration(
-        &mut self,
-        meta_data: DocumentMetaData,
-    ) -> SecureStringResult<()> {
-        self.configurations
-            .add(&self.secure_storage, meta_data)
-            .await
-    }
-
-    pub async fn delete_configuration(
-        &mut self,
-        form_name: &str,
-    ) -> SecureStringResult<()> {
-        self.configurations
-            .delete(&self.secure_storage, form_name)
-            .await
+use std::fmt::{Debug, Formatter};
+impl Debug for Credentials {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Credentials")
+            .field("username", &self.username)
+            .field("password", &"********")
+            .finish()
     }
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct LocalEncrypt {
-    user: User,
+    credentials: Credentials,
+    backend: StorageBackend,
 }
 
+
 impl LocalEncrypt {
-    pub async fn new(
-        username: &str,
-        password: &str,
-    ) -> SecureStringResult<Self> {
-        let user = User::new(username, password).await?;
-        Ok(Self { user })
+    pub fn new(username: &str, password: &str) -> Self {
+        Self {
+            credentials: Credentials::new(username, password),
+            backend: StorageBackend::Memory,
+        }
     }
 
-    pub fn user(&self) -> User {
-        self.user.clone()
+    pub fn backend(&self) -> &StorageBackend {
+        &self.backend
     }
 
-    pub fn create_document_store(&self) -> DocumentStore {
-        let secure_storage = self.user().secure_storage().clone();
-        DocumentStore::new(secure_storage)
-    }
-
-    pub async fn create_or_validate(
-        username: &str,
-        password: &str,
-    ) -> SecureStringResult<Self> {
-        Ok(Self {
-            user: User::create_or_validate(username, password).await?,
+    pub async fn new_with_document_store(username: &str, password: &str) -> SecureStringResult<Self> {
+        let credentials = Credentials::new(username, password);
+        let document_store = DocumentStore::new(&credentials).await?;
+        Ok (Self {
+            credentials,
+            backend: StorageBackend::DocumentStore(document_store),
         })
     }
 
@@ -138,25 +108,26 @@ impl LocalEncrypt {
     }
 
     pub async fn validate_password(
-        username: &str,
-        password: &str,
+        &self,
     ) -> Result<bool, SecureStringError> {
-        User::validate_password(username, password).await
+        User::validate_password(&self.credentials.username, &self.credentials.password).await
     }
 
     pub async fn change_password(
-        username: &str,
+        &self,
         old_password: &str,
         new_password: &str,
     ) -> SecureStringResult<()> {
+        let username = self.credentials.username.as_str();
         User::change_password(username, old_password, new_password).await
     }
 
-    pub async fn reset(username: &str) -> SecureStringResult<()> {
+    pub async fn reset(&self) -> SecureStringResult<()> {
+        let username = self.credentials.username.as_str();
         User::reset(username).await
     }
-}
 
+}
 
 #[wasm_bindgen]
 #[derive(Clone, Debug)]
@@ -169,16 +140,13 @@ impl LocalEncryptJs {
     pub fn new(username: String, password: String) -> js_sys::Promise {
         _ = console_log::init_with_level(log::Level::Debug);
         let future = async move {
-            let user = User::new(&username, &password).await.map_err(|e| JsValue::from_str(&e.to_string()))?;
-            let le = LocalEncryptJs { local_encrypt: LocalEncrypt { user } };
-            log::debug!("LocalEncryptJs::new: {:?}", le.local_encrypt.user());
+            let le = LocalEncrypt::new_with_document_store(&username, &password).await;
+            log::debug!("LocalEncryptJs::new: {:?}", le);
             Ok(JsValue::from_str("Initialized"))
         };
         wasm_bindgen_futures::future_to_promise(future)
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -190,33 +158,19 @@ mod tests {
 
     wasm_bindgen_test_configure!(run_in_browser);
 
-    #[wasm_bindgen_test]
-    async fn test_new() {
-        let username = "test_local_encrypt_new";
-        let password = "password_for_new";
-
-        let local_encrypt_result = LocalEncrypt::new(username, password).await;
-        assert!(
-            local_encrypt_result.is_ok(),
-            "Failed to create new LocalEncrypt"
-        );
-
-        LocalEncrypt::reset(username).await.unwrap();
-    }
 
     #[wasm_bindgen_test]
     async fn test_create_or_validate() {
         let username = "test_string_vault_create_or_validate";
         let password = "password_for_create_or_validate";
 
-        let string_vault_result =
-            LocalEncrypt::create_or_validate(username, password).await;
+        let local_encrypt = LocalEncrypt::new_with_document_store(username, password).await;
         assert!(
-            string_vault_result.is_ok(),
-            "Failed to create or validate Vault"
+            local_encrypt.is_ok(),
+            "Failed to create document store with error: {:?}",
+            local_encrypt
         );
-
-        LocalEncrypt::reset(username).await.unwrap();
+        local_encrypt.unwrap().reset().await.unwrap();
     }
 
     #[wasm_bindgen_test]
@@ -225,13 +179,12 @@ mod tests {
         let old_password = "password_for_change_password";
         let new_password = "new_password_for_change_password";
 
-        LocalEncrypt::new(username, old_password).await.unwrap();
+        let local_encrypt = LocalEncrypt::new(username, old_password);
         let change_password_result =
-            LocalEncrypt::change_password(username, old_password, new_password)
-                .await;
+            local_encrypt.change_password(old_password, new_password).await;
         assert!(change_password_result.is_ok(), "Failed to change password");
 
-        LocalEncrypt::reset(username).await.unwrap();
+        local_encrypt.reset().await.unwrap();
     }
 
     #[wasm_bindgen_test]
@@ -243,19 +196,23 @@ mod tests {
         assert_eq!(LocalEncrypt::user_exists(username).await, false);
 
         // Create the Vault
-        LocalEncrypt::create_or_validate(username, password)
-            .await
-            .unwrap();
+        let local_encrypt = LocalEncrypt::new_with_document_store(username, password).await;
+        assert!(
+            local_encrypt.is_ok(),
+            "Failed to create document store with error: {:?}",
+            local_encrypt
+        );
+        let local_encrypt = local_encrypt.unwrap();
 
         // Assert Vault now exists
         assert_eq!(LocalEncrypt::user_exists(username).await, true);
 
         // Reset the Vault
-        LocalEncrypt::reset(username).await.unwrap();
+        local_encrypt.reset().await.unwrap();
 
         // Assert Vault doesn't exist now
         assert_eq!(LocalEncrypt::user_exists(username).await, false);
-        LocalEncrypt::reset(username).await.unwrap();
+        local_encrypt.reset().await.unwrap();
     }
 
     #[wasm_bindgen_test]
@@ -263,18 +220,19 @@ mod tests {
         let username = "test_string_vault_validate_password";
         let password = "password_for_validate_password";
 
-        LocalEncrypt::create_or_validate(username, password)
-            .await
-            .unwrap();
-        let validate_password_result =
-            LocalEncrypt::validate_password(username, password).await;
+        let local_encrypt = LocalEncrypt::new_with_document_store(username, password).await;
         assert!(
-            validate_password_result.is_ok()
-                && validate_password_result.unwrap(),
+            local_encrypt.is_ok(),
+            "Failed to create document store with error: {:?}",
+            local_encrypt
+        );
+        let local_encrypt = local_encrypt.unwrap();
+        let validate_password_result = local_encrypt.validate_password().await;
+        assert!(
+            validate_password_result.is_ok() && validate_password_result.unwrap(),
             "Failed to validate password"
         );
-
-        LocalEncrypt::reset(username).await.unwrap();
+        local_encrypt.reset().await.unwrap();
     }
 
     #[wasm_bindgen_test]
@@ -282,30 +240,36 @@ mod tests {
         let username = "test_string_vault_list_configurations";
         let password = "password_for_list";
 
-        let local_encrypt =
-            LocalEncrypt::create_or_validate(username, password)
-                .await
-                .unwrap();
+        let local_encrypt = LocalEncrypt::new_with_document_store(username, password).await;
+        assert!(
+            local_encrypt.is_ok(),
+            "Failed to create document store with error: {:?}",
+            local_encrypt
+        );
+        let local_encrypt = local_encrypt.unwrap();
+        let backend = local_encrypt.backend();
+
+        let mut document_store = match backend {
+            StorageBackend::DocumentStore(document_store) => document_store,
+            _ => panic!("Invalid backend"),
+        }.clone();
 
         let mut config = HashMap::new();
-        config
-            .insert("some random value".to_string(), "test_config".to_string());
+        config.insert("some random value".to_string(), "test_config".to_string());
 
-        let form_id = "test_id_list";
-        let meta_data = DocumentMetaData::new(form_id);
+        // ensure unique id
+        let form_id = format!("{}-{}", username, password);
+        let meta_data = DocumentMetaData::new(&form_id);
 
         let config_bytes = serde_json::to_vec(&config).unwrap();
-        let mut document_store = local_encrypt.create_document_store();
-        let save_result = document_store
-            .save_configuration(meta_data, &config_bytes)
-            .await;
+        let save_result = document_store.save(meta_data, &config_bytes).await;
         assert!(
             save_result.is_ok(),
             "Failed to save secure configuration: {:?}",
             save_result.err().unwrap()
         );
 
-        let list_result = document_store.list_configurations().await;
+        let list_result = document_store.list().await;
         assert!(
             list_result.is_ok(),
             "Failed to list configurations: {:?}",
@@ -316,8 +280,7 @@ mod tests {
         assert!(listed_configurations
             .iter()
             .any(|form_data| form_data.id() == form_id));
-
-        LocalEncrypt::reset(username).await.unwrap();
+        local_encrypt.reset().await.unwrap();
     }
 
     #[wasm_bindgen_test]
@@ -325,15 +288,27 @@ mod tests {
         let username = "test_string_vault_add_delete";
         let password = "password_for_add_delete";
 
-        let local_encrypt =
-            LocalEncrypt::new(username, password).await.unwrap();
-        let mut document_store = local_encrypt.create_document_store();
+        let local_encrypt = LocalEncrypt::new_with_document_store(username, password).await;
+        assert!(
+            local_encrypt.is_ok(),
+            "Failed to create document store with error: {:?}",
+            local_encrypt
+        );
+        let local_encrypt = local_encrypt.unwrap();
+        let backend = local_encrypt.backend();
 
-        let form_id = "test_id_add_delete";
+        let mut document_store = match backend {
+            StorageBackend::DocumentStore(document_store) => document_store,
+            _ => panic!("Invalid backend"),
+        }.clone();
+
+        // ensure unique id
+        let form_id = format!("{}-{}", username, password);
+
         let meta_data = DocumentMetaData::new(&form_id);
 
         // Add a configuration with a given name
-        let add_result = document_store.add_configuration(meta_data).await;
+        let add_result = document_store.add(meta_data).await;
         assert!(
             add_result.is_ok(),
             "Failed to add configuration: {:?}",
@@ -341,7 +316,7 @@ mod tests {
         );
 
         // Delete the configuration
-        let delete_result = document_store.delete_configuration(&form_id).await;
+        let delete_result = document_store.delete(&form_id).await;
         assert!(
             delete_result.is_ok(),
             "Failed to delete configuration: {:?}",
@@ -349,14 +324,12 @@ mod tests {
         );
 
         // Try to delete again, it should fail since the configuration no longer exists
-        let delete_again_result =
-            document_store.delete_configuration(&form_id).await;
+        let delete_again_result = document_store.delete(&form_id).await;
         assert!(
             delete_again_result.is_err(),
             "Successfully deleted non-existent configuration"
         );
-
-        LocalEncrypt::reset(username).await.unwrap();
+        local_encrypt.reset().await.unwrap();
     }
 
     #[wasm_bindgen_test]
@@ -364,46 +337,56 @@ mod tests {
         let username = "test_local_encrypt_save_load";
         let password = "password_for_save_load";
 
-        let local_encrypt =
-            LocalEncrypt::create_or_validate(username, password)
-                .await
-                .unwrap();
+        let local_encrypt = LocalEncrypt::new_with_document_store(username, password).await;
+        assert!(
+            local_encrypt.is_ok(),
+            "Failed to create document store with error: {:?}",
+            local_encrypt
+        );
+        let local_encrypt = local_encrypt.unwrap();
+        let backend = local_encrypt.backend();
 
-        let mut document_store = local_encrypt.create_document_store();
+        let mut document_store = match backend {
+            StorageBackend::DocumentStore(document_store) => document_store,
+            _ => panic!("Invalid backend"),
+        }.clone();
 
         let mut config = HashMap::new();
-        config
-            .insert("some random value".to_string(), "test_config".to_string());
+        config.insert("some random value".to_string(), "test_config".to_string());
 
-        let form_id = username;
-        let meta_data = DocumentMetaData::new(form_id);
+        // ensure unique id
+        let form_id = format!("{}-{}", username, password);
+        let meta_data = DocumentMetaData::new(&form_id);
 
         let config_bytes = serde_json::to_vec(&config).unwrap();
-        let save_result = document_store
-            .save_configuration(meta_data.clone(), &config_bytes)
-            .await;
+        let save_result = document_store.save(meta_data.clone(), &config_bytes).await;
         assert!(
             save_result.is_ok(),
             "Failed to save secure configuration: {:?}",
             save_result.err().unwrap()
         );
 
-        let load_result = document_store.load_configuration(form_id).await;
+        let load_result = document_store.load(&form_id).await;
         assert!(
             load_result.is_ok(),
             "Failed to load secure configuration: {:?}",
             load_result.err().unwrap()
         );
 
-        let loaded_config_bytes = load_result.unwrap();
+        let loaded_config_bytes_option = load_result.unwrap();
+        assert!(
+            loaded_config_bytes_option.is_some(),
+            "Loaded secure configuration did not exist"
+        );
+
+        let loaded_config_bytes = loaded_config_bytes_option.unwrap();
         let loaded_config: HashMap<String, String> =
             serde_json::from_slice(&loaded_config_bytes).unwrap();
         assert_eq!(
             loaded_config, config,
             "Loaded secure configuration did not match saved configuration"
         );
-
-        LocalEncrypt::reset(username).await.unwrap();
+        local_encrypt.reset().await.unwrap();
     }
 
     #[wasm_bindgen_test]
@@ -411,42 +394,47 @@ mod tests {
         let username = "test_string_vault_delete";
         let password = "password_for_delete";
 
-        let local_encrypt =
-            LocalEncrypt::create_or_validate(username, password)
-                .await
-                .unwrap();
+        let local_encrypt = LocalEncrypt::new_with_document_store(username, password).await;
+        assert!(
+            local_encrypt.is_ok(),
+            "Failed to create document store with error: {:?}",
+            local_encrypt
+        );
+        let local_encrypt = local_encrypt.unwrap();
+        let backend = local_encrypt.backend();
+
+        let mut document_store = match backend {
+            StorageBackend::DocumentStore(document_store) => document_store,
+            _ => panic!("Invalid backend"),
+        }.clone();
 
         let mut config = HashMap::new();
-        config
-            .insert("some random value".to_string(), "test_config".to_string());
+        config.insert("some random value".to_string(), "test_config".to_string());
 
-        let form_id = username;
-        let meta_data = DocumentMetaData::new(form_id);
+        // ensure unique id
+        let form_id = format!("{}-{}", username, password);
+        let meta_data = DocumentMetaData::new(&form_id);
 
         let config_bytes = serde_json::to_vec(&config).unwrap();
-        let mut document_store = local_encrypt.create_document_store();
-        let save_result = document_store
-            .save_configuration(meta_data.clone(), &config_bytes)
-            .await;
+        let save_result = document_store.save(meta_data.clone(), &config_bytes).await;
         assert!(
             save_result.is_ok(),
             "Failed to save data: {:?}",
             save_result.err().unwrap()
         );
 
-        let delete_result = document_store.delete_configuration(form_id).await;
+        let delete_result = document_store.delete(&form_id).await;
         assert!(
             delete_result.is_ok(),
             "Failed to delete data: {:?}",
             delete_result.err().unwrap()
         );
 
-        let load_result = document_store.load_configuration(form_id).await;
+        let load_result = document_store.load(&form_id).await;
         assert!(
             load_result.is_err(),
             "Successfully loaded data after deletion"
         );
-
-        LocalEncrypt::reset(username).await.unwrap();
+        local_encrypt.reset().await.unwrap();
     }
 }

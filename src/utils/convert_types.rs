@@ -23,8 +23,7 @@ mod tests {
         let test_string = "test string";
         let expected_result: Vec<u8> = test_string.as_bytes().to_vec();
         let result = string_to_uint8array(test_string);
-        let result_vec: Vec<u8> =
-            result.to_vec().into_iter().map(|x| x as u8).collect();
+        let result_vec: Vec<u8> = result.to_vec().into_iter().map(|x| x as u8).collect();
         assert_eq!(result_vec, expected_result);
     }
 

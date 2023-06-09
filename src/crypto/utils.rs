@@ -1,24 +1,19 @@
 use web_sys::CryptoKey;
 
 use super::encryption::derive_crypto_key;
-use crate::storage::local_storage::{
-    create_storage_key, load_string, save_string,
-};
+use crate::storage::local_storage::{create_storage_key, load_string, save_string};
 use crate::utils::generate_salt_base64;
 use crate::{ObjectKey, SecureStringError, SecureStringResult};
 
 pub fn get_crypto_subtle(
-) -> SecureStringResult<(web_sys::Window, web_sys::Crypto, web_sys::SubtleCrypto)>
-{
+) -> SecureStringResult<(web_sys::Window, web_sys::Crypto, web_sys::SubtleCrypto)> {
     let window = web_sys::window().ok_or(SecureStringError::NoWindow)?;
     let crypto = window.crypto().map_err(|_| SecureStringError::NoCrypto)?;
     let subtle = crypto.subtle();
     Ok((window, crypto, subtle))
 }
 
-pub async fn load_or_save_salt(
-    storage_key: &str,
-) -> SecureStringResult<String> {
+pub async fn load_or_save_salt(storage_key: &str) -> SecureStringResult<String> {
     match load_string(&storage_key).await {
         Some(salt) => Ok(salt),
         None => {
@@ -74,57 +69,47 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_derive_key_same_password() {
-        let object_key =
-            ObjectKey::new("crypto_test1", "crypto_test_id1").unwrap();
+        let object_key = ObjectKey::new("crypto_test1", "crypto_test_id1").unwrap();
         let password = "password";
 
         let result = derive_key_from_password(&object_key, password).await;
         assert!(result.is_ok());
 
-        let result_repeat =
-            derive_key_from_password(&object_key, password).await;
+        let result_repeat = derive_key_from_password(&object_key, password).await;
         assert!(result_repeat.is_ok());
 
         // Export keys
         let subtle = get_crypto_subtle().unwrap().2;
         let result_unwrapped = result.as_ref().unwrap();
-        let exported_key_promise =
-            subtle.export_key("raw", result_unwrapped).unwrap();
-        let exported_key =
-            wasm_bindgen_futures::JsFuture::from(exported_key_promise)
-                .await
-                .unwrap();
+        let exported_key_promise = subtle.export_key("raw", result_unwrapped).unwrap();
+        let exported_key = wasm_bindgen_futures::JsFuture::from(exported_key_promise)
+            .await
+            .unwrap();
 
         let result_repeat_unwrapped = result_repeat.as_ref().unwrap();
         let exported_key_repeat_promise =
             subtle.export_key("raw", result_repeat_unwrapped).unwrap();
-        let exported_key_repeat =
-            wasm_bindgen_futures::JsFuture::from(exported_key_repeat_promise)
-                .await
-                .unwrap();
+        let exported_key_repeat = wasm_bindgen_futures::JsFuture::from(exported_key_repeat_promise)
+            .await
+            .unwrap();
 
-        let exported_key_bytes =
-            js_sys::Uint8Array::new(&exported_key).to_vec();
-        let exported_key_repeat_bytes =
-            js_sys::Uint8Array::new(&exported_key_repeat).to_vec();
+        let exported_key_bytes = js_sys::Uint8Array::new(&exported_key).to_vec();
+        let exported_key_repeat_bytes = js_sys::Uint8Array::new(&exported_key_repeat).to_vec();
         assert_eq!(exported_key_bytes, exported_key_repeat_bytes);
     }
 
     #[wasm_bindgen_test]
     async fn test_derive_key_empty_password() {
-        let object_key =
-            ObjectKey::new("crypto_test2", "crypto_test_id2").unwrap();
+        let object_key = ObjectKey::new("crypto_test2", "crypto_test_id2").unwrap();
         let password_empty = "";
 
-        let result_empty =
-            derive_key_from_password(&object_key, password_empty).await;
+        let result_empty = derive_key_from_password(&object_key, password_empty).await;
         assert!(result_empty.is_err());
     }
 
     #[wasm_bindgen_test]
     async fn test_derive_key_different_salt() {
-        let object_key =
-            ObjectKey::new("crypto_test3", "crypto_test_id3").unwrap();
+        let object_key = ObjectKey::new("crypto_test3", "crypto_test_id3").unwrap();
         let password = "password";
 
         // Get the storage_key for saving the salt
@@ -134,16 +119,14 @@ mod tests {
         let salt1 = "salt1";
         let save_result1 = save_string(&storage_key, salt1).await;
         assert!(save_result1.is_ok(), "Failed to save string for salt1.");
-        let result_salt1 =
-            derive_key_from_password(&object_key, password).await;
+        let result_salt1 = derive_key_from_password(&object_key, password).await;
         assert!(result_salt1.is_ok());
 
         // Then derive key with salt2
         let salt2 = "salt2";
         let save_result2 = save_string(&storage_key, salt2).await;
         assert!(save_result2.is_ok(), "Failed to save string for salt2.");
-        let result_salt2 =
-            derive_key_from_password(&object_key, password).await;
+        let result_salt2 = derive_key_from_password(&object_key, password).await;
         assert!(result_salt2.is_ok());
 
         // Finally, assert that the keys derived with different salts are different
@@ -155,19 +138,16 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_derive_key_same_salt_different_password() {
-        let object_key =
-            ObjectKey::new("crypto_test4", "crypto_test_id4").unwrap();
+        let object_key = ObjectKey::new("crypto_test4", "crypto_test_id4").unwrap();
 
         // Derive key with password1
         let password1 = "password1";
-        let result_password1 =
-            derive_key_from_password(&object_key, password1).await;
+        let result_password1 = derive_key_from_password(&object_key, password1).await;
         assert!(result_password1.is_ok());
 
         // Derive key with password2
         let password2 = "password2";
-        let result_password2 =
-            derive_key_from_password(&object_key, password2).await;
+        let result_password2 = derive_key_from_password(&object_key, password2).await;
         assert!(result_password2.is_ok());
 
         // Finally, assert that the keys derived with different passwords are different
