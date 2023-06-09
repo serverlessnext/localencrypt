@@ -3,7 +3,7 @@ use web_sys::window;
 
 use crate::ObjectKey;
 
-const KEY_PREFIX: &str = "STRINGVAULT";
+const KEY_PREFIX: &str = "LocalEncrypt";
 
 pub fn create_storage_key(object_key: &ObjectKey) -> String {
     vec![KEY_PREFIX, &object_key.tag(), &object_key.id()].join(":")
@@ -98,6 +98,6 @@ mod tests {
     fn test_create_storage_key() {
         let object_key = ObjectKey::new("tag", "id").unwrap();
         let storage_key = create_storage_key(&object_key);
-        assert_eq!(storage_key, "STRINGVAULT:tag:id");
+        assert_eq!(storage_key, "LocalEncrypt:tag:id");
     }
 }

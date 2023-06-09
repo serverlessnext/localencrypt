@@ -6,6 +6,7 @@ mod user;
 pub(crate) mod utils;
 
 use std::collections::HashMap;
+use wasm_bindgen::prelude::*;
 
 pub use common::{ObjectKey, SecureStringError, SecureStringResult};
 use configurations::Configurations;
@@ -156,6 +157,29 @@ impl LocalEncrypt {
     }
 }
 
+
+#[wasm_bindgen]
+#[derive(Clone, Debug)]
+pub struct LocalEncryptJs {
+    local_encrypt: LocalEncrypt,
+}
+
+#[wasm_bindgen]
+impl LocalEncryptJs {
+    pub fn new(username: String, password: String) -> js_sys::Promise {
+        _ = console_log::init_with_level(log::Level::Debug);
+        let future = async move {
+            let user = User::new(&username, &password).await.map_err(|e| JsValue::from_str(&e.to_string()))?;
+            let le = LocalEncryptJs { local_encrypt: LocalEncrypt { user } };
+            log::debug!("LocalEncryptJs::new: {:?}", le.local_encrypt.user());
+            Ok(JsValue::from_str("Initialized"))
+        };
+        wasm_bindgen_futures::future_to_promise(future)
+    }
+}
+
+
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -189,7 +213,7 @@ mod tests {
             LocalEncrypt::create_or_validate(username, password).await;
         assert!(
             string_vault_result.is_ok(),
-            "Failed to create or validate StringVault"
+            "Failed to create or validate Vault"
         );
 
         LocalEncrypt::reset(username).await.unwrap();
@@ -229,7 +253,7 @@ mod tests {
         // Reset the Vault
         LocalEncrypt::reset(username).await.unwrap();
 
-        // Assert StringVault doesn't exist now
+        // Assert Vault doesn't exist now
         assert_eq!(LocalEncrypt::user_exists(username).await, false);
         LocalEncrypt::reset(username).await.unwrap();
     }

@@ -1,0 +1,12 @@
+<script type="module">
+  import init, { LocalEncryptJs } from './pkg/localencrypt.js';
+
+  async function run() {
+    await init(); // Initialize the wasm module
+    const js_value = await LocalEncryptJs.new("username", "password");
+    console.log(js_value);
+  }
+
+  run();
+</script>
+
