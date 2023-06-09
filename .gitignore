@@ -13,6 +13,7 @@ __pycache__/
 .pyc
 *.lock
 package-lock.json
+package.json
 
 
 # auto-generated
