@@ -35,10 +35,21 @@ impl LocalStorage {
         })
     }
 
+    pub fn get_username(&self) -> SecureStringResult<String> {
+        Ok(self.credentials.username().to_string())
+    }
+
     pub async fn user_exists(username: &str) -> bool {
         let hashed_username = hash_username(username);
         let object_key = ObjectKey::new(&hashed_username, "self").unwrap();
         SecureStorage::exists(object_key).await
+    }
+
+    pub async fn soft_reset(&self) -> SecureStringResult<()> {
+        // TODO: soft reset should try to backup old master account
+        // for now we just hard reset
+        self.hard_reset().await?;
+        Ok(())
     }
 
     pub async fn hard_reset(&self) -> SecureStringResult<()> {
@@ -70,15 +81,23 @@ impl LocalStorage {
     }
 
     pub async fn change_password(
-        &self,
-        old_password: &str,
+        &mut self,
         new_password: &str,
     ) -> SecureStringResult<()> {
-        // TODO: Implement logic to change password
-        // 1. Check old_password is correct
-        // 2. Change password
-        // 3. Persist new password in secure storage
 
+        // copy existing items -- this will be gone after soft_reset
+        let items = self.get_items().await?;
+        let username = self.credentials.username();
+
+        // cleanup current user
+        self.soft_reset().await?;
+
+        // create user with same username, but new password
+        let user = LocalStorageUser::create_or_validate(&username, new_password).await?;
+        self.storage = Some(user.secure_storage().clone());
+
+        // put back original items with the new password
+        self.put_items(&items).await?;
         Ok(())
     }
 
@@ -101,7 +120,11 @@ impl LocalStorage {
 
         let items_as_meta = items
             .into_iter()
-            .map(|(id, tags)| ItemMetaData::new_with_tags(&id, tags))
+            .map(|(id, tags)| {
+                let mut new_tags = tags.clone();
+                new_tags.retain(|k, _| !k.starts_with("__") && !k.ends_with("__"));
+                ItemMetaData::new_with_tags(&id, new_tags)
+            })
             .collect();
 
         Ok(items_as_meta)
@@ -445,5 +468,54 @@ mod tests {
 
         // Clean up
         local_storage.unwrap().hard_reset().await.unwrap();
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_change_password() {
+        let old_password = "old_password";
+        let new_password = "new_password";
+        let username = "test_user_change_password_local_storage";
+
+        let item_id = "test_item_id";
+        let item_meta = ItemMetaData::new(item_id);
+        let test_content = b"test_content";
+
+        // Initialization with old password
+        let local_storage = LocalStorage::initiate_with_password(username, old_password).await;
+        assert!(local_storage.is_ok(), "Failed to initialize with old password");
+        let mut local_storage = local_storage.unwrap();
+
+        // Add an item
+        let save_result = local_storage.save_content(item_meta.clone(), test_content).await;
+        assert!(save_result.is_ok(), "Failed to save content before changing password");
+
+        // Change password to new password
+        let change_password_result = local_storage.change_password(new_password).await;
+        assert!(change_password_result.is_ok(), "Failed to change password");
+
+        // Ensure we can't load with old password
+        let result = LocalStorage::initiate_with_password(username, old_password).await;
+        assert!(
+            matches!(result, Err(SecureStringError::DecryptError(_))),
+            "Unexpectedly succeeded in loading with old password"
+        );
+
+        // Ensure we can load with new password
+        let result = LocalStorage::initiate_with_password(username, new_password).await;
+        assert!(
+            result.is_ok(),
+            "Failed to load with new password"
+        );
+        let new_local_storage = result.unwrap();
+
+        // Ensure our item still exists with new password
+        let load_result = new_local_storage.load_content(item_id).await;
+        assert!(
+            load_result.is_ok() && load_result.unwrap() == Some(test_content.to_vec()),
+            "Failed to load content or content was incorrect after changing password"
+        );
+
+        // Clean up
+        local_storage.hard_reset().await.unwrap();
     }
 }

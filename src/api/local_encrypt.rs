@@ -67,7 +67,7 @@ mod tests {
     #[wasm_bindgen_test]
     async fn test_builder_local_storage_backend() {
         // Using builder to set up LocalEncrypt with localStorage backend
-        let username = "username";
+        let username = "test_builder_local_storage_backend";
         let password = "password";
         let credentials = Credentials::new(username, password);
         let local_storage = LocalStorage::new(credentials)
@@ -116,7 +116,7 @@ mod tests {
     #[wasm_bindgen_test]
     async fn test_initiate_with_local_storage() {
         // Case with password
-        let username = "username";
+        let username = "test_initiate_with_local_storage";
         let password = "password";
         let result = StorageBackend::initiate_with_local_storage(username, Some(password)).await;
         assert!(result.is_ok());
@@ -130,7 +130,7 @@ mod tests {
     #[wasm_bindgen_test]
     async fn test_hard_reset() {
         // Case with Browser backend
-        let username = "username";
+        let username = "test_hard_reset";
         let password = "password";
         let backend = StorageBackend::initiate_with_local_storage(username, Some(password))
             .await
