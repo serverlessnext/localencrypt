@@ -5,7 +5,10 @@ build:
 	wasm-pack build --target web -d examples/pkg
 
 tests:
-	wasm-pack test --headless --firefox
+	@# run all tests: make tests
+	@# run a specific test: make tests TEST=localencrypt::utils
+	wasm-pack test --headless --firefox . -- $(TEST)
+
 
 run: build
 	cd examples && python3 server.py
