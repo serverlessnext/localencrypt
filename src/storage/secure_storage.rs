@@ -3,7 +3,7 @@ use base64::Engine as _;
 use js_sys::Uint8Array;
 use web_sys::CryptoKey;
 
-use super::local_storage::{create_storage_key, delete_string, load_string, save_string};
+use super::local_storage_ops::{create_storage_key, delete_string, load_string, save_string};
 use crate::crypto::{decrypt, encrypt, get_crypto_subtle};
 use crate::{ObjectKey, SecureStringError, SecureStringResult};
 

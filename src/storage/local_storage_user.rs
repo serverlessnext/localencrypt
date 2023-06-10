@@ -2,47 +2,17 @@ use crate::crypto::{derive_key_from_password, hash_username};
 use crate::{ObjectKey, SecureStorage, SecureStringError, SecureStringResult};
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct User {
+pub struct LocalStorageUser {
     secure_storage: SecureStorage,
 }
 
-impl User {
-    pub async fn new(username: &str, password: &str) -> SecureStringResult<Self> {
-        let hashed_username = hash_username(username);
-
-        let object_key_user = ObjectKey::new("USER", &hashed_username)?;
-        let crypto_key = derive_key_from_password(&object_key_user, password).await?;
-
-        let object_key_crypto = ObjectKey::new(&object_key_user.id(), "self")?;
-        Ok(Self {
-            secure_storage: SecureStorage::new(object_key_crypto, crypto_key),
-        })
-    }
-
-    pub fn secure_storage(&self) -> &SecureStorage {
-        &self.secure_storage
-    }
-
-    pub async fn exists(username: &str) -> bool {
-        let hashed_username = hash_username(username);
-        let object_key = ObjectKey::new(&hashed_username, "self").unwrap();
-        SecureStorage::exists(object_key).await
-    }
-
-    pub async fn create(username: &str, password: &str) -> SecureStringResult<Self> {
-        // this will ensure existing config is deleted
-        User::reset(username).await?;
-        let user = User::new(username, password).await?;
-        user.secure_storage.empty().await?;
-        Ok(user)
-    }
-
+impl LocalStorageUser {
     pub async fn create_or_validate(username: &str, password: &str) -> SecureStringResult<Self> {
-        if !User::exists(username).await {
-            return User::create(username, password).await;
+        if !LocalStorageUser::exists(username).await {
+            return LocalStorageUser::create(username, password).await;
         }
 
-        let user = User::new(username, password).await?;
+        let user = LocalStorageUser::new(username, password).await?;
 
         // Try to load the passwords to validate the password
         match user.secure_storage.load().await {
@@ -61,7 +31,37 @@ impl User {
         }
     }
 
-    pub async fn reset(username: &str) -> SecureStringResult<()> {
+    async fn new(username: &str, password: &str) -> SecureStringResult<Self> {
+        let hashed_username = hash_username(username);
+
+        let object_key_user = ObjectKey::new("USER", &hashed_username)?;
+        let crypto_key = derive_key_from_password(&object_key_user, password).await?;
+
+        let object_key_crypto = ObjectKey::new(&object_key_user.id(), "self")?;
+        Ok(Self {
+            secure_storage: SecureStorage::new(object_key_crypto, crypto_key),
+        })
+    }
+
+    pub fn secure_storage(&self) -> &SecureStorage {
+        &self.secure_storage
+    }
+
+    async fn exists(username: &str) -> bool {
+        let hashed_username = hash_username(username);
+        let object_key = ObjectKey::new(&hashed_username, "self").unwrap();
+        SecureStorage::exists(object_key).await
+    }
+
+    async fn create(username: &str, password: &str) -> SecureStringResult<Self> {
+        // this will ensure existing config is deleted
+        LocalStorageUser::reset(username).await?;
+        let user = LocalStorageUser::new(username, password).await?;
+        user.secure_storage.empty().await?;
+        Ok(user)
+    }
+
+    async fn reset(username: &str) -> SecureStringResult<()> {
         let hashed_username = hash_username(username);
         let object_key = ObjectKey::new(&hashed_username, "self")?;
 
@@ -85,7 +85,7 @@ mod tests {
         let username = "username";
         let password = "password";
 
-        let user_result = User::new(username, password).await;
+        let user_result = LocalStorageUser::new(username, password).await;
         assert!(user_result.is_ok());
 
         let user = user_result.unwrap();
@@ -102,9 +102,9 @@ mod tests {
         let password = "new_password";
 
         // Resetting a non-existing user should not return an error
-        assert!(User::reset(username).await.is_ok());
+        assert!(LocalStorageUser::reset(username).await.is_ok());
 
-        let user_result = User::create_or_validate(username, password).await;
+        let user_result = LocalStorageUser::create_or_validate(username, password).await;
         assert!(user_result.is_ok());
 
         let user = user_result.unwrap();
@@ -122,10 +122,10 @@ mod tests {
         let wrong_password = "wrong_password";
 
         // Create the user
-        User::create(username, password).await.unwrap();
+        LocalStorageUser::create(username, password).await.unwrap();
 
         // Now try to validate the user with wrong password
-        let user_result = User::create_or_validate(username, wrong_password).await;
+        let user_result = LocalStorageUser::create_or_validate(username, wrong_password).await;
         assert!(user_result.is_err());
         assert_eq!(
             user_result.unwrap_err(),
@@ -139,10 +139,10 @@ mod tests {
         let password = "correct_password_2";
 
         // Create the user
-        User::create(username, password).await.unwrap();
+        LocalStorageUser::create(username, password).await.unwrap();
 
         // Now try to validate the user with correct password
-        let user_result = User::create_or_validate(username, password).await;
+        let user_result = LocalStorageUser::create_or_validate(username, password).await;
         assert!(user_result.is_ok());
 
         let user = user_result.unwrap();
@@ -159,13 +159,13 @@ mod tests {
         let password = "password_for_exists_test";
 
         // Assert user doesn't exist initially
-        assert_eq!(User::exists(username).await, false);
+        assert_eq!(LocalStorageUser::exists(username).await, false);
 
         // Create the user
-        User::create(username, password).await.unwrap();
+        LocalStorageUser::create(username, password).await.unwrap();
 
         // Assert user now exists
-        assert_eq!(User::exists(username).await, true);
+        assert_eq!(LocalStorageUser::exists(username).await, true);
     }
 
     #[wasm_bindgen_test]
@@ -174,15 +174,15 @@ mod tests {
         let password = "password_for_reset_test";
 
         // Create the user
-        User::create(username, password).await.unwrap();
+        LocalStorageUser::create(username, password).await.unwrap();
 
         // Assert user now exists
-        assert_eq!(User::exists(username).await, true);
+        assert_eq!(LocalStorageUser::exists(username).await, true);
 
         // Reset the user
-        User::reset(username).await.unwrap();
+        LocalStorageUser::reset(username).await.unwrap();
 
         // Assert user doesn't exist now
-        assert_eq!(User::exists(username).await, false);
+        assert_eq!(LocalStorageUser::exists(username).await, false);
     }
 }

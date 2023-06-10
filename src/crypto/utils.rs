@@ -1,7 +1,7 @@
 use web_sys::CryptoKey;
 
 use super::encryption::derive_crypto_key;
-use crate::storage::local_storage::{create_storage_key, load_string, save_string};
+use crate::storage::local_storage_ops::{create_storage_key, load_string, save_string};
 use crate::utils::generate_salt_base64;
 use crate::{ObjectKey, SecureStringError, SecureStringResult};
 
@@ -47,7 +47,7 @@ mod tests {
     use wasm_bindgen_test::*;
 
     use super::*;
-    use crate::storage::local_storage::delete_string;
+    use crate::storage::local_storage_ops::delete_string;
 
     wasm_bindgen_test_configure!(run_in_browser);
 
