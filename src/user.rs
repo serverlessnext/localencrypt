@@ -61,27 +61,6 @@ impl User {
         }
     }
 
-    pub async fn validate_password(
-        username: &str,
-        password: &str,
-    ) -> Result<bool, SecureStringError> {
-        match User::create_or_validate(username, password).await {
-            Ok(_) => Ok(true), /* Password is valid if new_and_validate doesn't return an error */
-            Err(SecureStringError::DecryptError(_)) => Ok(false), /* DecryptError indicates an invalid password */
-            Err(err) => Err(err),                                 // Propagate any other errors
-        }
-    }
-
-    #[allow(unused)]
-    pub async fn change_password(
-        username: &str,
-        old_password: &str,
-        new_password: &str,
-    ) -> SecureStringResult<()> {
-        // TODO: implement
-        Ok(())
-    }
-
     pub async fn reset(username: &str) -> SecureStringResult<()> {
         let hashed_username = hash_username(username);
         let object_key = ObjectKey::new(&hashed_username, "self")?;

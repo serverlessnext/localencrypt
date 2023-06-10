@@ -1,6 +1,6 @@
 [package]
 name = "localencrypt"
-version = "0.0.1"
+version = "0.0.2-pre"
 authors = ["Anthony Potappel <aprxi@lakestream.dev>"]
 edition = "2021"
 

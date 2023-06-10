@@ -20,11 +20,19 @@ pub enum SecureStringError {
     InvalidCryptoKey,
     InvalidArgument(String),
     SerdeError(String),
+    StorageNotInitialized,
+    Unimplemented,
 }
 
 impl From<JsValue> for SecureStringError {
     fn from(e: JsValue) -> Self {
         SecureStringError::JsError(e)
+    }
+}
+
+impl From<SecureStringError> for JsValue {
+    fn from(error: SecureStringError) -> Self {
+        JsValue::from_str(&error.to_string())
     }
 }
 
@@ -77,6 +85,12 @@ impl fmt::Display for SecureStringError {
             }
             SecureStringError::SerdeError(e) => {
                 write!(f, "Serde JSON error: {}", e)
+            }
+            SecureStringError::StorageNotInitialized => {
+                write!(f, "Storage not initialized")
+            }
+            SecureStringError::Unimplemented => {
+                write!(f, "Unimplemented")
             }
         }
     }
