@@ -14,7 +14,8 @@ impl LocalEncryptJs {
         _ = console_log::init_with_level(log::Level::Debug);
         let future = async move {
             let storage_backend =
-                StorageBackend::initiate_with_local_storage(&username, Some(&password)).await?;
+                StorageBackend::initiate_with_local_storage(None, &username, Some(&password))
+                    .await?;
             let local_encrypt = LocalEncrypt::builder()
                 .with_backend(storage_backend)
                 .build();

@@ -25,8 +25,7 @@ impl LocalStorage {
         let storage = if password.is_empty() {
             None
         } else {
-            let username = credentials.username();
-            let user = LocalStorageUser::create_or_validate(&username, &password).await?;
+            let user = LocalStorageUser::create_or_validate(&credentials).await?;
             Some(user.secure_storage().clone())
         };
         Ok(Self {
@@ -39,9 +38,9 @@ impl LocalStorage {
         Ok(self.credentials.username().to_string())
     }
 
-    pub async fn user_exists(username: &str) -> bool {
+    pub async fn user_exists(environment: &str, username: &str) -> bool {
         let hashed_username = hash_username(username);
-        let object_key = ObjectKey::new(&hashed_username, "self").unwrap();
+        let object_key = ObjectKey::new(environment, &hashed_username, "self").unwrap();
         SecureStorage::exists(object_key).await
     }
 
@@ -53,9 +52,10 @@ impl LocalStorage {
     }
 
     pub async fn hard_reset(&self) -> SecureStringResult<()> {
+        let environment = self.credentials.environment();
         let username = self.credentials.username();
         let hashed_username = hash_username(&username);
-        let object_key = ObjectKey::new(&hashed_username, "self")?;
+        let object_key = ObjectKey::new(&environment, &hashed_username, "self")?;
 
         let secure_storage = SecureStorage::for_deletion(object_key);
         secure_storage.delete().await?;
@@ -80,20 +80,20 @@ impl LocalStorage {
         }
     }
 
-    pub async fn change_password(
-        &mut self,
-        new_password: &str,
-    ) -> SecureStringResult<()> {
-
+    pub async fn change_password(&mut self, new_password: &str) -> SecureStringResult<()> {
         // copy existing items -- this will be gone after soft_reset
         let items = self.get_items().await?;
-        let username = self.credentials.username();
+        let new_credentials = Credentials::new(
+            Some(&self.credentials.environment()),
+            &self.credentials.username(),
+            new_password,
+        );
 
         // cleanup current user
         self.soft_reset().await?;
 
         // create user with same username, but new password
-        let user = LocalStorageUser::create_or_validate(&username, new_password).await?;
+        let user = LocalStorageUser::create_or_validate(&new_credentials).await?;
         self.storage = Some(user.secure_storage().clone());
 
         // put back original items with the new password
@@ -102,16 +102,20 @@ impl LocalStorage {
     }
 
     pub async fn initiate_with_password(
+        environment: Option<&str>,
         username: &str,
         password: &str,
     ) -> SecureStringResult<Self> {
-        let credentials = Credentials::new(username, password);
+        let credentials = Credentials::new(environment, username, password);
         Self::new(credentials).await
     }
 
-    pub async fn initiate_with_no_password(username: &str) -> SecureStringResult<Self> {
+    pub async fn initiate_with_no_password(
+        environment: Option<&str>,
+        username: &str,
+    ) -> SecureStringResult<Self> {
         let password = "";
-        let credentials = Credentials::new(username, &password);
+        let credentials = Credentials::new(environment, username, &password);
         Self::new(credentials).await
     }
 
@@ -170,7 +174,8 @@ impl LocalStorage {
         let password = generate_password_base64()?;
         let derived_key = derive_crypto_key(&password, &item_id).await?;
 
-        let object_key = ObjectKey::new("", &item_id)?;
+        let environment = self.credentials.environment();
+        let object_key = ObjectKey::new(&environment, "", &item_id)?;
         let secure_storage_form = SecureStorage::new(object_key, derived_key);
         secure_storage_form.save(content).await?;
 
@@ -187,7 +192,8 @@ impl LocalStorage {
 
         if let Some(meta) = items.get(item_id) {
             if let Some(password) = meta.get(PASSWORD_FIELD) {
-                let object_key = ObjectKey::new("", &item_id)?;
+                let environment = self.credentials.environment();
+                let object_key = ObjectKey::new(&environment, "", &item_id)?;
                 let derived_key = derive_crypto_key(&password, &item_id).await?;
                 let secure_storage_form = SecureStorage::new(object_key, derived_key);
 
@@ -260,7 +266,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_list_items() {
-        let credentials = Credentials::new("test_user_list_items", "password_for_list_items");
+        let credentials = Credentials::new(None, "test_user_list_items", "password_for_list_items");
 
         let local_storage = LocalStorage::new(credentials.clone()).await;
         assert!(local_storage.is_ok());
@@ -280,7 +286,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_save_and_load_content() {
-        let credentials = Credentials::new("test_user_save_load", "password_for_save_load");
+        let credentials = Credentials::new(None, "test_user_save_load", "password_for_save_load");
 
         let local_storage = LocalStorage::new(credentials.clone()).await;
         assert!(local_storage.is_ok());
@@ -329,6 +335,7 @@ mod tests {
     #[wasm_bindgen_test]
     async fn test_add_and_delete_items() {
         let credentials = Credentials::new(
+            None,
             "test_user_add_and_delete_items",
             "password_for_add_and_delete",
         );
@@ -377,6 +384,7 @@ mod tests {
     #[wasm_bindgen_test]
     async fn test_delete_non_existent_item() {
         let credentials = Credentials::new(
+            None,
             "test_user_delete_non_existent_item",
             "password_for_delete_non_existent",
         );
@@ -399,6 +407,7 @@ mod tests {
     #[wasm_bindgen_test]
     async fn test_load_non_existent_item() {
         let credentials = Credentials::new(
+            None,
             "test_user_load_non_existent_item",
             "password_for_load_non_existent",
         );
@@ -420,6 +429,7 @@ mod tests {
     #[wasm_bindgen_test]
     async fn test_populate_meta_stored() {
         let credentials = Credentials::new(
+            None,
             "test_user_populate_meta_stored",
             "password_for_populate_meta_stored",
         );
@@ -453,14 +463,15 @@ mod tests {
 
         // Initialization with correct password
         let local_storage =
-            LocalStorage::initiate_with_password("test_user", correct_password).await;
+            LocalStorage::initiate_with_password(None, "test_user", correct_password).await;
         assert!(
             local_storage.is_ok(),
             "Failed to initialize with correct password"
         );
 
         // Attempting initialization with incorrect password
-        let result = LocalStorage::initiate_with_password("test_user", incorrect_password).await;
+        let result =
+            LocalStorage::initiate_with_password(None, "test_user", incorrect_password).await;
         assert!(
             matches!(result, Err(SecureStringError::DecryptError(_))),
             "Unexpected error type returned"
@@ -481,31 +492,37 @@ mod tests {
         let test_content = b"test_content";
 
         // Initialization with old password
-        let local_storage = LocalStorage::initiate_with_password(username, old_password).await;
-        assert!(local_storage.is_ok(), "Failed to initialize with old password");
+        let local_storage =
+            LocalStorage::initiate_with_password(None, username, old_password).await;
+        assert!(
+            local_storage.is_ok(),
+            "Failed to initialize with old password"
+        );
         let mut local_storage = local_storage.unwrap();
 
         // Add an item
-        let save_result = local_storage.save_content(item_meta.clone(), test_content).await;
-        assert!(save_result.is_ok(), "Failed to save content before changing password");
+        let save_result = local_storage
+            .save_content(item_meta.clone(), test_content)
+            .await;
+        assert!(
+            save_result.is_ok(),
+            "Failed to save content before changing password"
+        );
 
         // Change password to new password
         let change_password_result = local_storage.change_password(new_password).await;
         assert!(change_password_result.is_ok(), "Failed to change password");
 
         // Ensure we can't load with old password
-        let result = LocalStorage::initiate_with_password(username, old_password).await;
+        let result = LocalStorage::initiate_with_password(None, username, old_password).await;
         assert!(
             matches!(result, Err(SecureStringError::DecryptError(_))),
             "Unexpectedly succeeded in loading with old password"
         );
 
         // Ensure we can load with new password
-        let result = LocalStorage::initiate_with_password(username, new_password).await;
-        assert!(
-            result.is_ok(),
-            "Failed to load with new password"
-        );
+        let result = LocalStorage::initiate_with_password(None, username, new_password).await;
+        assert!(result.is_ok(), "Failed to load with new password");
         let new_local_storage = result.unwrap();
 
         // Ensure our item still exists with new password

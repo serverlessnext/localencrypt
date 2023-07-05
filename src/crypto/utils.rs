@@ -69,7 +69,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_derive_key_same_password() {
-        let object_key = ObjectKey::new("crypto_test1", "crypto_test_id1").unwrap();
+        let object_key = ObjectKey::new("debug", "crypto_test1", "crypto_test_id1").unwrap();
         let password = "password";
 
         let result = derive_key_from_password(&object_key, password).await;
@@ -100,7 +100,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_derive_key_empty_password() {
-        let object_key = ObjectKey::new("crypto_test2", "crypto_test_id2").unwrap();
+        let object_key = ObjectKey::new("debug", "crypto_test2", "crypto_test_id2").unwrap();
         let password_empty = "";
 
         let result_empty = derive_key_from_password(&object_key, password_empty).await;
@@ -109,7 +109,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_derive_key_different_salt() {
-        let object_key = ObjectKey::new("crypto_test3", "crypto_test_id3").unwrap();
+        let object_key = ObjectKey::new("debug", "crypto_test3", "crypto_test_id3").unwrap();
         let password = "password";
 
         // Get the storage_key for saving the salt
@@ -138,7 +138,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_derive_key_same_salt_different_password() {
-        let object_key = ObjectKey::new("crypto_test4", "crypto_test_id4").unwrap();
+        let object_key = ObjectKey::new("debug", "crypto_test4", "crypto_test_id4").unwrap();
 
         // Derive key with password1
         let password1 = "password1";

@@ -69,7 +69,7 @@ mod tests {
         // Using builder to set up LocalEncrypt with localStorage backend
         let username = "test_builder_local_storage_backend";
         let password = "password";
-        let credentials = Credentials::new(username, password);
+        let credentials = Credentials::new(None, username, password);
         let local_storage = LocalStorage::new(credentials)
             .await
             .expect("Failed to create local storage backend");
@@ -101,7 +101,7 @@ mod tests {
         let local_encrypt2 = LocalEncrypt::new();
         assert_eq!(local_encrypt1, local_encrypt2);
 
-        let credentials = Credentials::new("username", "password");
+        let credentials = Credentials::new(None, "username", "password");
         let local_storage = LocalStorage::new(credentials)
             .await
             .expect("Failed to create local storage backend");
@@ -118,12 +118,13 @@ mod tests {
         // Case with password
         let username = "test_initiate_with_local_storage";
         let password = "password";
-        let result = StorageBackend::initiate_with_local_storage(username, Some(password)).await;
+        let result =
+            StorageBackend::initiate_with_local_storage(None, username, Some(password)).await;
         assert!(result.is_ok());
 
         // Case without password
         let username = "username";
-        let result = StorageBackend::initiate_with_local_storage(username, None).await;
+        let result = StorageBackend::initiate_with_local_storage(None, username, None).await;
         assert!(result.is_ok());
     }
 
@@ -132,7 +133,7 @@ mod tests {
         // Case with Browser backend
         let username = "test_hard_reset";
         let password = "password";
-        let backend = StorageBackend::initiate_with_local_storage(username, Some(password))
+        let backend = StorageBackend::initiate_with_local_storage(None, username, Some(password))
             .await
             .expect("Failed to initiate local storage backend");
         let result = backend.hard_reset().await;
