@@ -151,15 +151,20 @@ impl LocalStorage {
     }
 
     pub async fn delete_item(&mut self, item_id: &str) -> SecureStringResult<()> {
-        let mut items = self.get_items().await?;
+        // remove form data first
+        let environment = self.credentials.environment();
+        let object_key = ObjectKey::new(&environment, "", &item_id)?;
+        let secure_storage = SecureStorage::for_deletion(object_key);
+        secure_storage.delete().await?;
 
+        // remove item meta
+        let mut items = self.get_items().await?;
         if items.remove(item_id).is_none() {
             return Err(SecureStringError::PasswordNotFound(format!(
                 "Configuration for {} not found",
                 item_id
             )));
         }
-
         self.put_items(&items).await
     }
 
